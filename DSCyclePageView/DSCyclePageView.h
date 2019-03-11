@@ -23,7 +23,7 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  当在最后一页，继续滚动时，是否需要加载下一页数据的页面。默认为YES
  */
-@property (nonatomic, assign) BOOL needLoadNextPageData;
+//@property (nonatomic, assign) BOOL needLoadNextPageData;
 
 //设置页面上展示的itemView的类。默认为UIView
 - (void)registerItemViewClassName:(NSString*)itemClassName;

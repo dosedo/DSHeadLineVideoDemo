@@ -31,7 +31,6 @@
     [self.view addSubview:_pageView];
 }
 
-
 #pragma mark - Delegate
 - (void)cyclePageViewLoadNextPageData:(DSCyclePageView *)pageView{
     

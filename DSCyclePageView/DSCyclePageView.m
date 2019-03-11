@@ -23,7 +23,7 @@
 - (instancetype)initWithFrame:(CGRect)frame{
     self = [super initWithFrame:frame];
     if( self ){
-        _needLoadNextPageData = YES;
+//        _needLoadNextPageData = YES;
         _currIndex = 0;
         _itemClassName = @"UIView";
         self.scrollView.frame = CGRectMake(0, 0, frame.size.width, frame.size.height);
@@ -57,10 +57,10 @@
     
     CGFloat width = CGRectGetWidth(self.frame);
     CGFloat height = CGRectGetHeight(self.frame);
-    CGFloat contentW = width*(_needLoadNextPageData?(count+1):count);
+    CGFloat contentW = width*count;
     [self.scrollView setContentSize:CGSizeMake(contentW, height)];
     
-    NSInteger itemViewMaxCount = 3;
+    NSInteger itemViewMaxCount = 5;
     //若数据数量小于最大itemView的数量，则不考虑复用
     if( count <= itemViewMaxCount ){
         itemViewMaxCount = count;
@@ -69,13 +69,12 @@
     [self.itemViews removeAllObjects];
     [self.scrollView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
     
-    
     CGFloat startX = 0;
     if( _currIndex < count ){
         if( _currIndex ==0 ){
             startX = 0;
         }else if( _currIndex == count-1 ){
-            startX = contentW - ((_needLoadNextPageData?(itemViewMaxCount+1):itemViewMaxCount)*width);
+            startX = contentW - (itemViewMaxCount*width);
         }else{
             startX = (_currIndex-1)*width;
         }
@@ -168,7 +167,7 @@
                 ix = baseX - width - width*i;
             }else{
                 //将其他视图 移到展示视图的两侧
-                ix = baseX -width;
+                ix = baseX - width;
                 if( i>0 ){
                     ix = baseX + width;
                 }
@@ -212,3 +211,25 @@
 
 
 @end
+
+/*
+ 
+ 1.只有1个元素。
+ 2.只有2个元素。
+ 3.只有3个元素
+ 4.只有4个元素
+ 5.只有5个元素。
+ 6.多于5个元素。
+ 
+ 1-5 的情况，滚动scrollview的时候，不必移动item, 同时加载所有item的数据。
+ 6的情况，滚动一次后，移动滚动方向的头部元素至滚动方向的末尾处，并加载该item此时的数据。
+ 
+ 注意：reloadData时，加载所有item视图的数据，即<=5个item视图的数据。
+ 1.少于等于5个数据时，直接根据currIndex设置offsetx 即可。
+ 2.多于5个数据时，根据currIndex设置offsetx ，以及设置5个视图的X。
+   a.当currIndex 是最后一个索引时，则 展示5个item的最后一个。
+   b.当currIndex 是倒数第二个时，则展示5个item的倒数第二个。
+   c.当currIndex 是0 时，则展示第一个item.
+   d.当currIndex 是1时， 则展示第二个item.
+   e.当currIndex 是其他时，展示中间item.
+ */
