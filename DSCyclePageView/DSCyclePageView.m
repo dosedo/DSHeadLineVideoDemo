@@ -9,13 +9,15 @@
 #import "DSCyclePageView.h"
 
 @interface DSCyclePageView()<UIScrollViewDelegate>
-@property (nonatomic, assign) NSInteger currIndex;    //当前展示的索引
 @property (nonatomic, strong) NSMutableArray *itemViews;
+@property (nonatomic, assign) NSInteger currIndex;
+@property (nonatomic, assign) NSInteger count;
 @end
 
 @implementation DSCyclePageView{
-    NSString *_itemClassName;
-    NSInteger _count;
+
+    NSInteger _willShowItemIndex;  //将要展示的item的索引
+    NSInteger _maxItemViewCount;   //最大的itemView的数量。规定5个
 }
 
 @synthesize scrollView = _scrollView;
@@ -23,27 +25,38 @@
 - (instancetype)initWithFrame:(CGRect)frame{
     self = [super initWithFrame:frame];
     if( self ){
-//        _needLoadNextPageData = YES;
         _currIndex = 0;
-        _itemClassName = @"UIView";
+        _maxItemViewCount = 3;
         self.scrollView.frame = CGRectMake(0, 0, frame.size.width, frame.size.height);
     }
     return self;
 }
 
-- (void)registerItemViewClassName:(NSString *)itemClassName{
-    _itemClassName = itemClassName;
-}
-
-- (void)endLoadNextPageDataWithIsHaveNewData:(BOOL)isHaveNewData{
-    if( isHaveNewData ){
-        _currIndex ++;
+- (UIView*)dequeueReusableItemView{
+    if( self.itemViews.count < _maxItemViewCount){
+        return nil;
+    }
+    else{
+        BOOL isSlideToRight = ((_willShowItemIndex) < _currIndex);
+        NSInteger index = isSlideToRight?(_itemViews.count-1):0;
+        if( _itemViews.count > index ){
+            UIView *willShowItemView = _itemViews[index];
+            [_itemViews removeObjectAtIndex:index];
+            if( isSlideToRight ){
+                [_itemViews insertObject:willShowItemView atIndex:0];
+            }else{
+                [_itemViews addObject:willShowItemView];
+            }
+            return willShowItemView;
+        }
+        return nil;
     }
 }
 
 - (void)reloadData{
     
     if( _delegate == nil ) return;
+    
     NSInteger count = 0;
     if( [_delegate respondsToSelector:@selector(cyclePageViewItemCount:)] ){
         count = [_delegate cyclePageViewItemCount:self];
@@ -60,124 +73,122 @@
     CGFloat contentW = width*count;
     [self.scrollView setContentSize:CGSizeMake(contentW, height)];
     
-    NSInteger itemViewMaxCount = 5;
-    //若数据数量小于最大itemView的数量，则不考虑复用
-    if( count <= itemViewMaxCount ){
-        itemViewMaxCount = count;
-    }
-    
     [self.itemViews removeAllObjects];
     [self.scrollView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
     
-    CGFloat startX = 0;
-    if( _currIndex < count ){
-        if( _currIndex ==0 ){
-            startX = 0;
-        }else if( _currIndex == count-1 ){
-            startX = contentW - (itemViewMaxCount*width);
-        }else{
-            startX = (_currIndex-1)*width;
-        }
-    }
-    
-    for( NSInteger i=0; i<itemViewMaxCount; i++ ){
-        UIView* itemView = (UIView*)[[NSClassFromString(_itemClassName) alloc] init];
-        
-        itemView.backgroundColor = [UIColor colorWithWhite:rand()%255/255.0 alpha:1];
-        
-        if( ![itemView isKindOfClass:[UIView class]] ){
-            return;
-        }
-        
-        itemView.frame = CGRectMake(startX+i*width, 0, width, height);
-        [self.scrollView addSubview:itemView];
-        
-        [self.itemViews addObject:itemView];
-    }
-    
-    if( _delegate && [_delegate respondsToSelector:@selector(cyclePageView:scrollToItemView:itemIndex:)] ){
-        
-        [_delegate cyclePageView:self scrollToItemView:[self itemViewWithCurrIndex:_currIndex] itemIndex:_currIndex];
+     if( [_delegate respondsToSelector:@selector(cyclePageView:itemViewAtIndex:)] ){
+
+         //重加载数据时，最多加载3个数据。
+         NSInteger itemCount = 3;
+         if( count < itemCount ){
+             itemCount = count;
+         }
+         NSInteger startIndex = 0;
+         if( _currIndex <=1){
+             startIndex = 0;
+         }else if( _currIndex >= count-2 ){
+             startIndex = count-3;
+         }
+         else{
+             startIndex = _currIndex-1;
+         }
+         
+         for( NSInteger i=0; i<itemCount; i++ ){
+         
+             UIView *item = [_delegate cyclePageView:self itemViewAtIndex:i+startIndex];
+             if( item && (self.itemViews.count <= _maxItemViewCount) && ( [self.itemViews containsObject:item]==NO )){
+                 [self.itemViews addObject:item];
+                 [self.scrollView addSubview:item];
+             }
+             item.frame = CGRectMake((startIndex+i)*width, 0, width, height);
+         }
+         
+         [self.scrollView setContentOffset:CGPointMake(_currIndex*width, 0)];
     }
 }
 
-- (UIView*)itemViewWithCurrIndex:(NSInteger)index{
+- (void)reloadCurrIndexPageData{
+    
+    if( _delegate == nil ) return;
+    
+    //若当前页面停留在上次加载数据的最后一个页面，则重新加载一次本页数据。
+    if( _currIndex == _count-1 ){
+        [_delegate cyclePageView:self itemViewAtIndex:_currIndex];
+    }
+    
+    NSInteger count = 0;
+    if( [_delegate respondsToSelector:@selector(cyclePageViewItemCount:)] ){
+        count = [_delegate cyclePageViewItemCount:self];
+        _count = count;
+    }
+    
     CGFloat width = CGRectGetWidth(self.frame);
-    CGFloat offx = index*width;
-    for( UIView *view in self.itemViews ){
-        if( view.center.x > offx && view.center.x < offx+width ){
-            return view;
-        }
-    }
-    return nil;
-}
-
-//将某个视图设置为中心，index，即将设置为中心的视图的索引
-- (void)setCenterItemViewWithIndex:(NSInteger)index startX:(CGFloat)startX{
-    //三个视图，只有三种情况：012、201、120
-    if( self.itemViews.count <= index ) return;
-    
-    UIView *midView = _itemViews[index];
-    midView.center =
-    CGPointMake(startX+CGRectGetWidth(midView.frame)*1.5,midView.center.y);
-    
-    NSInteger frontIdx = (index==0)?2:(index-1);
-    NSInteger nextIdx = (index==2)?0:(index+1);
-    
-    if( _itemViews.count > frontIdx ){
-        UIView *frontView = _itemViews[frontIdx];
-        frontView.center = CGPointMake(startX+CGRectGetWidth(midView.frame),midView.center.y);
-    }
-    
-    if( _itemViews.count > nextIdx ){
-        UIView *nextView = _itemViews[frontIdx];
-        nextView.center = CGPointMake(startX+CGRectGetWidth(midView.frame)*2.5,midView.center.y);
-    }
+    CGFloat height = CGRectGetHeight(self.frame);
+    CGFloat contentW = width*count;
+    [self.scrollView setContentSize:CGSizeMake(contentW, height)];
 }
 
 #pragma mark - UIScrollViewDelegate
-- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView{
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView{
+    
+    if( _count <= _maxItemViewCount ) return;
+    
     CGFloat width = CGRectGetWidth(self.frame);
-    NSInteger newIndex = (int)((scrollView.contentOffset.x+10) / width );
+    CGFloat nextItemViewCenterX = _currIndex *width + width/2;
+    CGFloat frontItemViewCenterX = _currIndex *width - width/2;
+    CGFloat offsetX = scrollView.contentOffset.x;
+    NSInteger willShowIndex = _currIndex;
     
-    if( newIndex == _count ){
-        if([_delegate respondsToSelector:@selector(cyclePageViewLoadNextPageData:)] ){
-            [_delegate cyclePageViewLoadNextPageData:self];
+    NSInteger addIndex = 1;
+    if( offsetX > nextItemViewCenterX ){
+        if( willShowIndex < _count-1){
+            willShowIndex ++;
         }
-        return;
     }
-
-    _currIndex = newIndex;
-    
-    if( _delegate && [_delegate respondsToSelector:@selector(cyclePageView:scrollToItemView:itemIndex:)] ){
-        UIView *showView = [self itemViewWithCurrIndex:_currIndex];
-        [_delegate cyclePageView:self scrollToItemView:showView itemIndex:_currIndex];
-        
-        NSInteger i=0;
-        CGFloat baseX = CGRectGetMinX(showView.frame);
-        for( UIView *view in self.itemViews ){
-            if( [view isEqual:showView] ) continue;
+    else if( offsetX < frontItemViewCenterX ){
+        if( willShowIndex > 0 ){
+            willShowIndex --;
             
-            CGFloat ix = CGRectGetMinX(view.frame);
-            if( _currIndex == 0 ){
-                //将其他视图 移到展示视图后面
-                ix = baseX + width + (i*width);
-            }else if( _currIndex == _count-1 ){
-                //将其他视图 移到展示视图前面
-                ix = baseX - width - width*i;
-            }else{
-                //将其他视图 移到展示视图的两侧
-                ix = baseX - width;
-                if( i>0 ){
-                    ix = baseX + width;
-                }
+            addIndex = -addIndex;
+        }
+    }
+    
+    //滚动超过一半的宽度，则加载下一个或上一个item
+    if( willShowIndex != _currIndex ){
+        
+        //不加载新的视图的情况
+        if( _currIndex < 2 || _currIndex > _count-3 ){
+            if( _currIndex == 0 || _currIndex == _count-1 ){
+                _currIndex = willShowIndex;
+                return;
+            }
+            else if( _currIndex == 1 && willShowIndex < _currIndex ){
+                _currIndex = willShowIndex;
+                return;
+            }
+            else if( _currIndex == _count-2 && willShowIndex > _currIndex ){
+                _currIndex = willShowIndex;
+                return;
+            }
+        }
+        
+        if( _delegate && [_delegate respondsToSelector:@selector(cyclePageView:itemViewAtIndex:)] ){
+            
+            _willShowItemIndex = willShowIndex;
+            
+            NSLog(@"加载item");
+            UIView *item = [_delegate cyclePageView:self itemViewAtIndex:willShowIndex+addIndex];
+            
+            if( item && (self.itemViews.count <= _maxItemViewCount) && ( [self.itemViews containsObject:item]==NO )){
+                [self.itemViews addObject:item];
+                [self.scrollView addSubview:item];
             }
             
-            CGRect fr = view.frame;
-            fr.origin.x = ix;
-            view.frame = fr;
+            CGFloat width = CGRectGetWidth(self.frame);
+            CGFloat height = CGRectGetHeight(self.frame);
+            item.frame = CGRectMake((willShowIndex+addIndex)*width, 0, width, height);
             
-            i++;
+            _currIndex = willShowIndex;
         }
     }
 }
@@ -209,27 +220,13 @@
     return _itemViews;
 }
 
-
 @end
 
 /*
+ 若数据不多于3个。则加载全部数据。
+ 若数据多于3个，则：
+ 每次加载 都要加载3页的数据
  
- 1.只有1个元素。
- 2.只有2个元素。
- 3.只有3个元素
- 4.只有4个元素
- 5.只有5个元素。
- 6.多于5个元素。
- 
- 1-5 的情况，滚动scrollview的时候，不必移动item, 同时加载所有item的数据。
- 6的情况，滚动一次后，移动滚动方向的头部元素至滚动方向的末尾处，并加载该item此时的数据。
- 
- 注意：reloadData时，加载所有item视图的数据，即<=5个item视图的数据。
- 1.少于等于5个数据时，直接根据currIndex设置offsetx 即可。
- 2.多于5个数据时，根据currIndex设置offsetx ，以及设置5个视图的X。
-   a.当currIndex 是最后一个索引时，则 展示5个item的最后一个。
-   b.当currIndex 是倒数第二个时，则展示5个item的倒数第二个。
-   c.当currIndex 是0 时，则展示第一个item.
-   d.当currIndex 是1时， 则展示第二个item.
-   e.当currIndex 是其他时，展示中间item.
+ 滚动过程：
+ 当滑动至当前页时，下载下一页或上一页的数据。
  */
