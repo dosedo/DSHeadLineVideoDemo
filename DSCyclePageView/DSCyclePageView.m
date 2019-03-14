@@ -8,6 +8,9 @@
 
 #import "DSCyclePageView.h"
 
+@interface DSCyclePageViewScrollView : UIScrollView
+@end
+
 @interface DSCyclePageView()<UIScrollViewDelegate>
 @property (nonatomic, strong) NSMutableArray *itemViews;
 @property (nonatomic, assign) NSInteger currIndex;
@@ -15,7 +18,7 @@
 @end
 
 @implementation DSCyclePageView{
-
+    
     NSInteger _willShowItemIndex;  //将要展示的item的索引
     NSInteger _maxItemViewCount;   //最大的itemView的数量。规定5个
 }
@@ -76,34 +79,34 @@
     [self.itemViews removeAllObjects];
     [self.scrollView.subviews makeObjectsPerformSelector:@selector(removeFromSuperview)];
     
-     if( [_delegate respondsToSelector:@selector(cyclePageView:itemViewAtIndex:)] ){
-
-         //重加载数据时，最多加载3个数据。
-         NSInteger itemCount = 3;
-         if( count < itemCount ){
-             itemCount = count;
-         }
-         NSInteger startIndex = 0;
-         if( _currIndex <=1){
-             startIndex = 0;
-         }else if( _currIndex >= count-2 ){
-             startIndex = count-3;
-         }
-         else{
-             startIndex = _currIndex-1;
-         }
-         
-         for( NSInteger i=0; i<itemCount; i++ ){
-         
-             UIView *item = [_delegate cyclePageView:self itemViewAtIndex:i+startIndex];
-             if( item && (self.itemViews.count <= _maxItemViewCount) && ( [self.itemViews containsObject:item]==NO )){
-                 [self.itemViews addObject:item];
-                 [self.scrollView addSubview:item];
-             }
-             item.frame = CGRectMake((startIndex+i)*width, 0, width, height);
-         }
-         
-         [self.scrollView setContentOffset:CGPointMake(_currIndex*width, 0)];
+    if( [_delegate respondsToSelector:@selector(cyclePageView:itemViewAtIndex:)] ){
+        
+        //重加载数据时，最多加载3个数据。
+        NSInteger itemCount = 3;
+        if( count < itemCount ){
+            itemCount = count;
+        }
+        NSInteger startIndex = 0;
+        if( _currIndex <=1){
+            startIndex = 0;
+        }else if( _currIndex >= count-2 ){
+            startIndex = count-3;
+        }
+        else{
+            startIndex = _currIndex-1;
+        }
+        
+        for( NSInteger i=0; i<itemCount; i++ ){
+            
+            UIView *item = [_delegate cyclePageView:self itemViewAtIndex:i+startIndex];
+            if( item && (self.itemViews.count <= _maxItemViewCount) && ( [self.itemViews containsObject:item]==NO )){
+                [self.itemViews addObject:item];
+                [self.scrollView addSubview:item];
+            }
+            item.frame = CGRectMake((startIndex+i)*width, 0, width, height);
+        }
+        
+        [self.scrollView setContentOffset:CGPointMake(_currIndex*width, 0)];
     }
 }
 
@@ -196,12 +199,12 @@
 #pragma mark - Getter
 - (UIScrollView *)scrollView{
     if( !_scrollView ){
-        _scrollView = [UIScrollView new];
+        _scrollView = [DSCyclePageViewScrollView new];
         _scrollView.backgroundColor = [UIColor clearColor];
         _scrollView.delegate = self;
         _scrollView.pagingEnabled = YES;
         _scrollView.scrollEnabled = YES;
-
+        
         [self addSubview:_scrollView];
         
         if (@available(iOS 11.0, *)) {
@@ -230,3 +233,35 @@
  滚动过程：
  当滑动至当前页时，下载下一页或上一页的数据。
  */
+
+
+@implementation DSCyclePageViewScrollView
+
+- (id)init{
+    self = [super init];
+    if( self )
+    {
+        [self initSelf];
+    }
+    return self;
+}
+
+- (instancetype)initWithFrame:(CGRect)frame{
+    self = [super initWithFrame:frame];
+    if(self){
+        [self initSelf];
+    }
+    return self;
+}
+
+- (void)initSelf{
+    //为了防止，uibutton 加在tableview上后，没有效果的问题
+    self.canCancelContentTouches = YES;
+    self.delaysContentTouches = NO;
+}
+
+- (BOOL)touchesShouldCancelInContentView:(UIView *)view{
+    return YES;
+}
+
+@end
